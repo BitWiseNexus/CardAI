@@ -74,6 +74,8 @@ export function useChat(sessionId: string) {
                 )
               )
             }
+            // heartbeat = server is retrying after a 429, ignore silently
+            if (parsed.heartbeat) continue
             if (parsed.error) {
               throw new Error(parsed.error)
             }

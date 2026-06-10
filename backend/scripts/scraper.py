@@ -47,7 +47,7 @@ log = logging.getLogger("scraper")
 # Configuration
 # ---------------------------------------------------------------------------
 
-GEMINI_MODEL = "gemini-2.5-flash"  # Fast, economical — ideal for ETL parsing
+GEMINI_MODEL = os.environ.get("SCRAPER_MODEL", "gemini-2.5-flash-lite")
 MAX_CHARS = 120_000                 # Token budget guard (Gemini Flash 1M context)
 RETRY_LIMIT = 2
 RETRY_DELAY = 10                    # seconds between Gemini retries
