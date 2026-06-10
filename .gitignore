@@ -1,0 +1,42 @@
+# Python
+backend/venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# Environment
+.env
+*.env.local
+
+# FAISS data (large binary, rebuild from DB)
+backend/data/
+
+# Scraped output files
+*.json
+!package.json
+!package-lock.json
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Tools
+.claude/
+context.md
+
+# OS
+.DS_Store
+Thumbs.db
