@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+/* Streaming cursor blink */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+.streaming-cursor::after {
+  content: '▋';
+  display: inline-block;
+  margin-left: 1px;
+  animation: blink 0.8s step-end infinite;
+  color: #6366f1;
+}
+
+/* Markdown table styles injected into prose */
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.875rem;
+}
+.prose thead {
+  background: #1e293b;
+}
+.prose th, .prose td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #334155;
+  text-align: left;
+}
+.prose th {
+  color: #94a3b8;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.prose td {
+  color: #cbd5e1;
+}
+.prose tr:hover td {
+  background: #1e293b;
+}
+.prose strong {
+  color: #e2e8f0;
+  font-weight: 600;
+}
+.prose p {
+  margin: 0.4rem 0;
+  line-height: 1.65;
+}
+.prose ul {
+  padding-left: 1.25rem;
+  margin: 0.4rem 0;
+}
+.prose li {
+  margin: 0.2rem 0;
+}
+.prose code {
+  background: #0f172a;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+  color: #a5b4fc;
+}
