@@ -58,7 +58,7 @@ app.add_middleware(
 # Production should use Redis or Supabase; this is sufficient for Phase 1 dev.
 _sessions: dict[str, list[dict]] = defaultdict(list)
 
-GENERATION_MODEL = "gemini-2.0-flash"
+GENERATION_MODEL = "gemini-2.5-flash"
 MAX_HISTORY_TOKENS = 4096   # Approximate token budget for history buffer
 
 

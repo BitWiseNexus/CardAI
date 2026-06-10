@@ -34,8 +34,8 @@ except ImportError:
 # Config
 # ---------------------------------------------------------------------------
 
-EMBED_MODEL = "models/text-embedding-004"   # Google's latest free embedding model
-EMBED_DIM = 768                              # Output dimension for text-embedding-004
+EMBED_MODEL = "models/gemini-embedding-001"  # Google's available embedding model
+EMBED_DIM = 3072                             # Output dimension for gemini-embedding-001
 INDEX_PATH = Path(__file__).resolve().parents[1] / "data" / "faiss.index"
 METADATA_PATH = Path(__file__).resolve().parents[1] / "data" / "faiss_metadata.pkl"
 

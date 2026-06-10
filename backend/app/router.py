@@ -28,7 +28,7 @@ from app.models import RouterDecision
 load_dotenv()
 log = logging.getLogger("router")
 
-ROUTER_MODEL = "gemini-2.0-flash"   # Small, fast — only produces a tiny JSON blob
+ROUTER_MODEL = "gemini-2.5-flash"   # Small, fast — only produces a tiny JSON blob
 
 
 # ---------------------------------------------------------------------------
