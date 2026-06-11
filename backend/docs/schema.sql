@@ -60,6 +60,29 @@ CREATE INDEX IF NOT EXISTS idx_cards_issuer       ON credit_cards (issuer);
 CREATE INDEX IF NOT EXISTS idx_cards_credit_score ON credit_cards (credit_score_required);
 
 -- ============================================================
+-- Phase 3: multi-region + search-agent cache columns
+-- (idempotent — safe to run on an existing Phase 1 table)
+-- ============================================================
+ALTER TABLE credit_cards ADD COLUMN IF NOT EXISTS region TEXT DEFAULT 'US';
+ALTER TABLE credit_cards ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'USD';
+ALTER TABLE credit_cards ADD COLUMN IF NOT EXISTS reward_type TEXT;
+ALTER TABLE credit_cards ADD COLUMN IF NOT EXISTS reward_rate_description TEXT;
+ALTER TABLE credit_cards ADD COLUMN IF NOT EXISTS fuel_surcharge_waiver BOOLEAN DEFAULT FALSE;
+ALTER TABLE credit_cards ADD COLUMN IF NOT EXISTS domestic_lounge_access INTEGER;
+ALTER TABLE credit_cards ADD COLUMN IF NOT EXISTS international_lounge_access INTEGER;
+ALTER TABLE credit_cards ADD COLUMN IF NOT EXISTS joining_fee NUMERIC(10,2) DEFAULT 0;
+ALTER TABLE credit_cards ADD COLUMN IF NOT EXISTS milestone_benefits TEXT;
+ALTER TABLE credit_cards ADD COLUMN IF NOT EXISTS data_fetched_at TIMESTAMPTZ DEFAULT NOW();
+
+-- India-specific reward multipliers
+ALTER TABLE credit_cards ADD COLUMN IF NOT EXISTS fuel_multiplier NUMERIC(4,2) DEFAULT 1.0;
+ALTER TABLE credit_cards ADD COLUMN IF NOT EXISTS utilities_multiplier NUMERIC(4,2) DEFAULT 1.0;
+ALTER TABLE credit_cards ADD COLUMN IF NOT EXISTS emi_multiplier NUMERIC(4,2) DEFAULT 1.0;
+
+CREATE INDEX IF NOT EXISTS idx_cards_region     ON credit_cards (region);
+CREATE INDEX IF NOT EXISTS idx_cards_fetched_at ON credit_cards (data_fetched_at);
+
+-- ============================================================
 -- Row-Level Security (enable for production)
 -- ============================================================
 -- ALTER TABLE credit_cards ENABLE ROW LEVEL SECURITY;

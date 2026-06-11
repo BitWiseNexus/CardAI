@@ -36,6 +36,7 @@ frontend/.env
 # Tools
 .claude/
 context.md
+phase3_prompt.md
 
 # OS
 .DS_Store

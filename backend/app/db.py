@@ -11,13 +11,14 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from dotenv import load_dotenv
 from pydantic import ValidationError
 from supabase import create_client, Client
 
-from app.models import CreditCard
+from app.models import CreditCard, Region
 
 load_dotenv()
 log = logging.getLogger("db")
@@ -95,6 +96,20 @@ def _card_to_row(card: CreditCard) -> dict[str, Any]:
         "credit_score_required": card.credit_score_required,
         "source_url": card.source_url,
         "description": card.description,
+        # Phase 3: multi-region fields
+        "region": card.region.value,
+        "currency": card.currency,
+        "reward_type": card.reward_type,
+        "reward_rate_description": card.reward_rate_description,
+        "fuel_surcharge_waiver": card.fuel_surcharge_waiver,
+        "domestic_lounge_access": card.domestic_lounge_access,
+        "international_lounge_access": card.international_lounge_access,
+        "milestone_benefits": card.milestone_benefits,
+        "joining_fee": card.joining_fee,
+        "fuel_multiplier": m.fuel,
+        "utilities_multiplier": m.utilities,
+        "emi_multiplier": m.emi_transactions,
+        "data_fetched_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -179,4 +194,50 @@ def get_all_cards(limit: int = 500) -> list[dict[str, Any]]:
     """Fetch all cards — used to rebuild the FAISS index from the DB."""
     client = get_client()
     response = client.table("credit_cards").select("*").limit(limit).execute()
+    return response.data
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: cache-TTL helpers for the web search agent
+# ---------------------------------------------------------------------------
+
+def is_cache_stale(region: Region | str, hours: int = 24) -> bool:
+    """
+    True if NO card for *region* was fetched within the last *hours*.
+    The agent uses this to decide whether to hit Tavily or serve cached rows.
+    Fails open (stale) so a DB error triggers a fresh search rather than
+    silently serving nothing.
+    """
+    region_value = region.value if isinstance(region, Region) else region
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+
+    try:
+        client = get_client()
+        response = (
+            client.table("credit_cards")
+            .select("id", count="exact")
+            .eq("region", region_value)
+            .gte("data_fetched_at", cutoff)
+            .limit(1)
+            .execute()
+        )
+        fresh_count = response.count if response.count is not None else len(response.data)
+        log.info("Cache check region=%s: %d fresh row(s) within %dh", region_value, fresh_count, hours)
+        return fresh_count == 0
+    except Exception as exc:  # noqa: BLE001
+        log.error("Cache staleness check failed (treating as stale): %s", exc)
+        return True
+
+
+def get_cards_by_region(region: Region | str, limit: int = 50) -> list[dict[str, Any]]:
+    """Fetch cards for one region — used to serve cached data without a search."""
+    region_value = region.value if isinstance(region, Region) else region
+    client = get_client()
+    response = (
+        client.table("credit_cards")
+        .select("*")
+        .eq("region", region_value)
+        .limit(limit)
+        .execute()
+    )
     return response.data

@@ -8,13 +8,15 @@ export interface Message {
   isError?: boolean
 }
 
+export type Region = 'US' | 'IN' | 'BOTH'
+
 const API_URL = 'http://localhost:8000/api/chat'
 
 function uid() {
   return Math.random().toString(36).slice(2, 10)
 }
 
-export function useChat(sessionId: string) {
+export function useChat(sessionId: string, region: Region = 'US') {
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -38,7 +40,7 @@ export function useChat(sessionId: string) {
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history, session_id: sessionId }),
+        body: JSON.stringify({ messages: history, session_id: sessionId, region }),
         signal: abortRef.current.signal,
       })
 
@@ -105,7 +107,7 @@ export function useChat(sessionId: string) {
     } finally {
       setIsLoading(false)
     }
-  }, [messages, isLoading, sessionId])
+  }, [messages, isLoading, sessionId, region])
 
   const stopStreaming = useCallback(() => {
     abortRef.current?.abort()

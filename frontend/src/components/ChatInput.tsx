@@ -1,12 +1,33 @@
 import { useState, useRef, type KeyboardEvent } from 'react'
+import type { Region } from '../hooks/useChat'
 
 interface Props {
   onSend: (text: string) => void
   onStop: () => void
   isLoading: boolean
+  region?: Region
 }
 
-export function ChatInput({ onSend, onStop, isLoading }: Props) {
+const SUGGESTIONS: Record<Region, string[]> = {
+  US: [
+    'No annual fee cards',
+    'Best for airport lounges',
+    'Highest dining rewards',
+    'Best signup bonus',
+  ],
+  IN: [
+    'Best travel cards India',
+    'LTF cards India',
+    'Best fuel card India',
+    'HDFC vs ICICI',
+  ],
+  BOTH: [
+    'Compare US and India lounge cards',
+    'Best global travel card',
+  ],
+}
+
+export function ChatInput({ onSend, onStop, isLoading, region = 'US' }: Props) {
   const [value, setValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -34,12 +55,7 @@ export function ChatInput({ onSend, onStop, isLoading }: Props) {
     el.style.height = Math.min(el.scrollHeight, 160) + 'px'
   }
 
-  const suggestions = [
-    'Cards with no annual fee',
-    'Best card for airport lounges',
-    'Highest dining rewards',
-    'Best travel signup bonus',
-  ]
+  const suggestions = SUGGESTIONS[region]
 
   return (
     <div className="border-t border-slate-800 bg-slate-950 px-4 pt-3 pb-4">

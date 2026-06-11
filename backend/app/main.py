@@ -2,17 +2,25 @@
 CardAI — FastAPI application entry point.
 
 Endpoints:
-  GET  /health          → liveness check
+  GET  /health          → liveness check + LLM provider status
   GET  /api/cache/stats → how many responses are cached (quota audit)
   POST /api/chat        → session-aware hybrid RAG chatbot with SSE streaming
   POST /api/ingest      → trigger scraper + upsert + FAISS rebuild (admin)
 
+Phase 3 pipeline per message:
+  1. Local regex router      → intent + region + card type (0 API calls)
+  2. Web search agent        → Tavily search + LLM extraction, only if the
+                               regional cache is stale (24h TTL)
+  3. Hybrid retrieval        → Supabase SQL filter + FAISS vector search
+  4. Streaming generation    → multi-provider LLM chain (Groq → Cerebras → Gemini)
+
 Quota-conservation measures
 ────────────────────────────
-1. Local regex router    → 0 Gemini calls for intent classification (was 1)
+1. Local regex router    → 0 LLM calls for intent classification
 2. SQL-only queries      → 0 embedding calls (router skips FAISS)
 3. Response cache        → repeated identical queries cost 0 API calls
-4. 429 retry-backoff     → honours Retry-After instead of failing hard
+4. Provider failover     → rate-limited providers are skipped automatically
+5. 24h search cache      → Tavily fires at most once per region per TTL window
 """
 
 from __future__ import annotations
@@ -22,7 +30,6 @@ import hashlib
 import json
 import logging
 import os
-import re
 import time
 from collections import defaultdict
 from typing import AsyncGenerator
@@ -31,13 +38,12 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from google import genai
-from google.genai import types as genai_types
 from pydantic import BaseModel
 
-from app import db, vector_store
-from app.models import ChatRequest
-from app.router import format_context_for_prompt, retrieve
+from app import db, llm, vector_store
+from app.agent import fetch_cards_for_query
+from app.models import ChatRequest, SearchQuery
+from app.router import classify_intent, format_context_for_prompt, retrieve
 
 load_dotenv()
 log = logging.getLogger("main")
@@ -52,8 +58,8 @@ logging.basicConfig(
 
 app = FastAPI(
     title="CardAI",
-    description="Automated Credit Card Analytics & Hybrid RAG Chatbot",
-    version="0.1.0",
+    description="Real-Time Multi-Region Credit Card Search Agent & Hybrid RAG Chatbot",
+    version="0.3.0",
 )
 
 app.add_middleware(
@@ -64,18 +70,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-GENERATION_MODEL = os.environ.get("GENERATION_MODEL", "gemini-2.5-flash-lite")
-
 # In-memory session store
 _sessions: dict[str, list[dict]] = defaultdict(list)
 
 # Response cache: {cache_key: full_response_text}
-# Keyed by hash(normalized_query).  Cleared by POST /api/cache/clear.
+# Keyed by hash(region + normalized_query).  Cleared by POST /api/cache/clear.
 _response_cache: dict[str, str] = {}
 
 
-def _cache_key(user_message: str) -> str:
-    normalized = user_message.strip().lower()
+def _cache_key(user_message: str, region: str | None = None) -> str:
+    normalized = f"{region or 'AUTO'}|{user_message.strip().lower()}"
     return hashlib.md5(normalized.encode()).hexdigest()
 
 
@@ -84,36 +88,39 @@ def _cache_key(user_message: str) -> str:
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = """\
-You are CardAI, an expert financial advisor specialising in US credit cards.
-You have access to a live database of credit card products retrieved for this specific query.
+You are CardAI, an expert financial advisor for credit cards in both the United States and India.
+
+Regional expertise:
+- US cards: Annual fees in USD, APR ranges, signup bonuses (miles/points/cashback), Priority Pass lounge access
+- India cards: Annual/joining fees in INR, reward points (not miles), fuel surcharge waivers, domestic + international lounge access, milestone benefits, LTF (lifetime free) cards
 
 Guidelines:
-1. Answer ONLY from the provided card data — never hallucinate fees, APRs, or rewards.
-2. If the data is insufficient to fully answer, say so clearly.
-3. Present comparisons in structured markdown tables when showing multiple cards.
-4. Always mention the annual fee and signup bonus prominently.
-5. If the user references "that card" or "the first card", use conversation history.
-6. End each response with a brief "Bottom line:" summary.
+1. Answer ONLY from the provided card data — never hallucinate fees, rewards, or benefits
+2. Always clarify the currency (USD/INR) when stating fees or benefits
+3. For Indian cards: mention joining fee vs annual fee separately (often waived on spend)
+4. For US cards: mention APR prominently (Indian cards rarely have variable APR)
+5. Present comparisons as markdown tables with currency clearly labelled
+6. If comparing across regions, note they serve different markets and are not directly comparable
+7. End with a "Bottom line:" recommendation
+8. If no relevant cards found, say so and suggest what the user could specify
 """
 
 # ---------------------------------------------------------------------------
-# Streaming generation with 429 retry-backoff
+# Streaming generation via the multi-provider LLM chain
 # ---------------------------------------------------------------------------
-
-_RETRY_AFTER_RE = re.compile(r'retry in (\d+(?:\.\d+)?)s', re.IGNORECASE)
-MAX_RETRIES = 2
-
 
 async def stream_generation(
     user_message: str,
     history: list[dict],
     context_block: str,
+    region: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """
-    Stream SSE chunks from Gemini. On 429, waits Retry-After seconds then retries
-    (up to MAX_RETRIES). Caches the complete response so duplicate queries are free.
+    Stream SSE chunks from the LLM provider chain (Groq → Cerebras → Gemini).
+    Rate-limited providers fail over automatically inside llm.stream_chat.
+    Caches the complete response so duplicate queries are free.
     """
-    cache_k = _cache_key(user_message)
+    cache_k = _cache_key(user_message, region)
     if cache_k in _response_cache:
         log.info("Cache HIT for query: %s", user_message[:60])
         cached = _response_cache[cache_k]
@@ -124,89 +131,46 @@ async def stream_generation(
         yield "data: [DONE]\n\n"
         return
 
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        yield 'data: {"error": "GEMINI_API_KEY not configured"}\n\n'
-        yield "data: [DONE]\n\n"
-        return
-
-    client = genai.Client(api_key=api_key)
-
-    # Build Gemini content list
-    contents: list[genai_types.Content] = [
-        genai_types.Content(
-            role="user",
-            parts=[genai_types.Part(
-                text=f"[RETRIEVED CARD DATA — use as factual source]\n\n{context_block}"
-            )],
-        ),
-        genai_types.Content(
-            role="model",
-            parts=[genai_types.Part(text="Understood. I will base my response on the retrieved card data above.")],
-        ),
+    messages: list[dict] = [
+        {
+            "role": "user",
+            "content": f"[RETRIEVED CARD DATA — use as factual source]\n\n{context_block}",
+        },
+        {
+            "role": "assistant",
+            "content": "Understood. I will base my response on the retrieved card data above.",
+        },
     ]
     for msg in history[-20:]:
-        contents.append(genai_types.Content(
-            role="user" if msg["role"] == "user" else "model",
-            parts=[genai_types.Part(text=msg["content"])],
-        ))
-    contents.append(genai_types.Content(
-        role="user",
-        parts=[genai_types.Part(text=user_message)],
-    ))
+        messages.append({
+            "role": "user" if msg["role"] == "user" else "assistant",
+            "content": msg["content"],
+        })
+    messages.append({"role": "user", "content": user_message})
 
     accumulated: list[str] = []
-    last_error: str = ""
+    try:
+        async for token in llm.stream_chat(
+            messages,
+            system=SYSTEM_PROMPT,
+            temperature=0.3,
+            max_tokens=2048,
+        ):
+            accumulated.append(token)
+            yield f"data: {json.dumps({'token': token})}\n\n"
+            await asyncio.sleep(0)
 
-    for attempt in range(1, MAX_RETRIES + 2):
-        accumulated.clear()
-        try:
-            response_stream = client.models.generate_content_stream(
-                model=GENERATION_MODEL,
-                contents=contents,
-                config=genai_types.GenerateContentConfig(
-                    system_instruction=SYSTEM_PROMPT,
-                    temperature=0.3,
-                    max_output_tokens=2048,
-                ),
-            )
-            for chunk in response_stream:
-                text = chunk.text
-                if text:
-                    accumulated.append(text)
-                    yield f"data: {json.dumps({'token': text})}\n\n"
-                    await asyncio.sleep(0)
-
-            # Success — cache and exit
-            _response_cache[cache_k] = "".join(accumulated)
-            log.info("Cache STORE for query: %s", user_message[:60])
-            yield "data: [DONE]\n\n"
-            return
-
-        except Exception as exc:  # noqa: BLE001
-            last_error = str(exc)
-            is_daily_quota  = "PerDay" in last_error or "per_day" in last_error.lower()
-            is_minute_quota = ("429" in last_error or "RESOURCE_EXHAUSTED" in last_error) and not is_daily_quota
-            is_unavailable  = "503" in last_error or "UNAVAILABLE" in last_error
-
-            # Only retry transient errors (per-minute 429 or 503).
-            # Daily quota exhaustion is permanent until midnight — don't waste calls.
-            if (is_minute_quota or is_unavailable) and attempt <= MAX_RETRIES:
-                m = _RETRY_AFTER_RE.search(last_error)
-                wait = float(m.group(1)) + 2 if m else 35.0
-                log.warning(
-                    "Gemini %s on attempt %d/%d — waiting %.0fs",
-                    "429/min" if is_minute_quota else "503", attempt, MAX_RETRIES + 1, wait,
-                )
-                yield f'data: {json.dumps({"heartbeat": f"Rate limited — retrying in {int(wait)}s"})}\n\n'
-                await asyncio.sleep(wait)
-                continue
-
-            # Non-retriable or out of retries
-            log.error("Gemini generation failed after %d attempts: %s", attempt, last_error)
-            yield f"data: {json.dumps({'error': last_error})}\n\n"
-            yield "data: [DONE]\n\n"
-            return
+        _response_cache[cache_k] = "".join(accumulated)
+        log.info("Cache STORE for query: %s", user_message[:60])
+        yield "data: [DONE]\n\n"
+    except Exception as exc:  # noqa: BLE001
+        log.error("Generation failed across all providers: %s", exc)
+        if accumulated:
+            # Stream broke mid-response — tell the client and stop
+            yield f"data: {json.dumps({'error': f'Stream interrupted: {exc}'})}\n\n"
+        else:
+            yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+        yield "data: [DONE]\n\n"
 
 
 # ---------------------------------------------------------------------------
@@ -220,6 +184,8 @@ async def health() -> dict:
         "service": "CardAI",
         "version": app.version,
         "cached_responses": len(_response_cache),
+        "llm_providers": llm.provider_status(),
+        "search_agent": bool(os.environ.get("TAVILY_API_KEY")),
     }
 
 
@@ -242,19 +208,42 @@ async def chat(request: ChatRequest) -> StreamingResponse:
     session_id   = request.session_id or "default"
     messages     = request.messages
     user_message = messages[-1].content
-
-    try:
-        retrieval      = await retrieve(user_message)
-        context_block  = format_context_for_prompt(retrieval)
-    except Exception as exc:  # noqa: BLE001
-        log.error("Retrieval failed: %s", exc)
-        context_block = "Card database temporarily unavailable."
+    ui_region    = request.region  # 'US' | 'IN' | 'BOTH' | None
 
     history             = _sessions[session_id]
     collected_tokens: list[str] = []
 
     async def _event_generator() -> AsyncGenerator[str, None]:
-        async for chunk in stream_generation(user_message, history, context_block):
+        # 1. Classify intent locally (0 API calls)
+        decision = classify_intent(user_message, region_override=ui_region)
+
+        # 2. Run the web search agent if the regional cache is stale.
+        #    Skipped entirely on response-cache hits — no point re-searching.
+        if _cache_key(user_message, ui_region) not in _response_cache:
+            yield f'data: {json.dumps({"heartbeat": "Checking live card data…"})}\n\n'
+            search_query = SearchQuery(
+                raw_query=user_message,
+                region=decision.region,
+                card_type_hint=decision.card_type,
+                numeric_filters={},
+            )
+            try:
+                fresh_cards = await fetch_cards_for_query(search_query)
+                if fresh_cards:
+                    log.info("Agent fetched %d fresh card(s)", len(fresh_cards))
+            except Exception as exc:  # noqa: BLE001
+                log.error("Search agent error (continuing with cached data): %s", exc)
+
+        # 3. Hybrid retrieval (SQL + FAISS) over the now-fresh database
+        try:
+            retrieval     = await retrieve(user_message, region_override=ui_region)
+            context_block = format_context_for_prompt(retrieval)
+        except Exception as exc:  # noqa: BLE001
+            log.error("Retrieval failed: %s", exc)
+            context_block = "Card database temporarily unavailable."
+
+        # 4. Stream generation through the provider chain
+        async for chunk in stream_generation(user_message, history, context_block, ui_region):
             if chunk not in ("data: [DONE]\n\n",):
                 try:
                     d = json.loads(chunk[6:].strip())

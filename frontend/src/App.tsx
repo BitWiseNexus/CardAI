@@ -1,12 +1,19 @@
-import { useEffect, useRef } from 'react'
-import { useChat } from './hooks/useChat'
+import { useEffect, useRef, useState } from 'react'
+import { useChat, type Region } from './hooks/useChat'
 import { ChatMessage } from './components/ChatMessage'
 import { ChatInput } from './components/ChatInput'
 
 const SESSION_ID = `session-${Math.random().toString(36).slice(2, 10)}`
 
+const REGIONS: { value: Region; label: string }[] = [
+  { value: 'US', label: '🇺🇸 US' },
+  { value: 'IN', label: '🇮🇳 India' },
+  { value: 'BOTH', label: '🌐 Both' },
+]
+
 export default function App() {
-  const { messages, isLoading, sendMessage, stopStreaming, clearChat } = useChat(SESSION_ID)
+  const [region, setRegion] = useState<Region>('US')
+  const { messages, isLoading, sendMessage, stopStreaming, clearChat } = useChat(SESSION_ID, region)
   const bottomRef = useRef<HTMLDivElement>(null)
   const isEmpty = messages.length === 0
 
@@ -34,8 +41,25 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Region selector */}
+          <div className="flex rounded-lg border border-slate-700 overflow-hidden">
+            {REGIONS.map(r => (
+              <button
+                key={r.value}
+                onClick={() => setRegion(r.value)}
+                className={`text-xs px-3 py-1.5 transition-colors ${
+                  region === r.value
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+
           {/* Status dot */}
-          <span className="flex items-center gap-1.5 text-xs text-slate-500">
+          <span className="flex items-center gap-1.5 text-xs text-slate-500 ml-2">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             Live
           </span>
@@ -54,7 +78,7 @@ export default function App() {
       {/* ── Chat area ── */}
       <main className="flex-1 overflow-y-auto">
         {isEmpty ? (
-          <WelcomeScreen onSend={sendMessage} />
+          <WelcomeScreen onSend={sendMessage} region={region} />
         ) : (
           <div className="max-w-3xl mx-auto py-6">
             {messages.map(msg => (
@@ -67,22 +91,43 @@ export default function App() {
 
       {/* ── Input ── */}
       <div className="flex-shrink-0 max-w-3xl w-full mx-auto">
-        <ChatInput onSend={sendMessage} onStop={stopStreaming} isLoading={isLoading} />
+        <ChatInput onSend={sendMessage} onStop={stopStreaming} isLoading={isLoading} region={region} />
       </div>
     </div>
   )
 }
 
 /* ─── Welcome / empty state ─── */
-function WelcomeScreen({ onSend }: { onSend: (t: string) => void }) {
-  const examples = [
-    { label: 'No annual fee', query: 'Which Chase cards have no annual fee?', icon: '💳' },
-    { label: 'Airport lounges', query: 'What is the best card for airport lounge access?', icon: '✈️' },
+
+const EXAMPLES: Record<Region, { label: string; query: string; icon: string }[]> = {
+  US: [
+    { label: 'No annual fee', query: 'Which US cards have no annual fee?', icon: '💳' },
+    { label: 'Airport lounges', query: 'What is the best US card for airport lounge access?', icon: '✈️' },
     { label: 'Dining rewards', query: 'Which card gives the most rewards on dining and restaurants?', icon: '🍽️' },
     { label: 'Travel bonus', query: 'Show me cards with the best travel signup bonuses over $500 value', icon: '🌍' },
     { label: 'Low APR', query: 'What cards have the lowest APR under 22%?', icon: '📉' },
     { label: 'Compare cards', query: 'Compare the Sapphire Preferred vs Sapphire Reserve for a frequent traveler', icon: '⚖️' },
-  ]
+  ],
+  IN: [
+    { label: 'Travel cards', query: 'Best travel credit cards in India with lounge access', icon: '✈️' },
+    { label: 'LTF cards', query: 'Which lifetime free credit cards are best in India?', icon: '💳' },
+    { label: 'Fuel cards', query: 'Best fuel credit card in India with surcharge waiver', icon: '⛽' },
+    { label: 'HDFC vs ICICI', query: 'Compare HDFC Regalia Gold vs ICICI Sapphiro', icon: '⚖️' },
+    { label: 'Milestone perks', query: 'Indian credit cards with the best milestone benefits', icon: '🎯' },
+    { label: 'Cashback', query: 'Best cashback credit cards in India for online shopping', icon: '🛒' },
+  ],
+  BOTH: [
+    { label: 'Global lounges', query: 'Compare US and India credit cards for airport lounge access', icon: '✈️' },
+    { label: 'Global travel', query: 'Best global travel credit card for someone who flies internationally', icon: '🌍' },
+    { label: 'No annual fee', query: 'Best no annual fee cards in the US and India', icon: '💳' },
+    { label: 'Dining rewards', query: 'Top dining rewards cards across US and India', icon: '🍽️' },
+    { label: 'Premium cards', query: 'Compare premium cards: Amex Platinum vs HDFC Diners Club Black', icon: '👑' },
+    { label: 'Cashback', query: 'Best flat-rate cashback cards in the US and India', icon: '🛒' },
+  ],
+}
+
+function WelcomeScreen({ onSend, region }: { onSend: (t: string) => void; region: Region }) {
+  const examples = EXAMPLES[region]
 
   return (
     <div className="flex flex-col items-center justify-center h-full px-4 py-12">
@@ -94,7 +139,8 @@ function WelcomeScreen({ onSend }: { onSend: (t: string) => void }) {
       </div>
       <h2 className="text-2xl font-bold text-white mb-2">What card fits your life?</h2>
       <p className="text-slate-400 text-sm mb-10 text-center max-w-sm">
-        Ask about fees, rewards, APRs, lounge access, or signup bonuses — I'll find the best match from live data.
+        Ask about fees, rewards, APRs, lounge access, or signup bonuses — I'll search live data
+        for {region === 'US' ? 'US' : region === 'IN' ? 'Indian' : 'US and Indian'} cards.
       </p>
 
       {/* Example cards */}
