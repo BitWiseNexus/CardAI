@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────────────
+   CardAI design system
+   Palette: graphite neutrals (zinc) + emerald accent
+   Motion: 200ms ease-out micro-interactions, entrance animations
+   ───────────────────────────────────────────────────────────── */
+
 @layer base {
   * {
     box-sizing: border-box;
@@ -11,84 +17,239 @@
     padding: 0;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    background-color: #09090b;
+    color: #e4e4e7;
+  }
+
+  ::selection {
+    background: rgba(16, 185, 129, 0.25);
+    color: #f4f4f5;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  /* Accessible focus ring, only for keyboard navigation */
+  :focus-visible {
+    outline: 2px solid rgba(16, 185, 129, 0.6);
+    outline-offset: 2px;
+    border-radius: 6px;
   }
 }
 
-/* Smooth scrollbar */
+/* ── Scrollbar ─────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 3px;
+  background: #27272a;
+  border-radius: 8px;
+  border: 2px solid #09090b;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #27272a transparent;
 }
 
-/* Streaming cursor blink */
+/* ── Animations ────────────────────────────────────────────── */
+
 @keyframes blink {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0; }
-}
-.streaming-cursor::after {
-  content: '▋';
-  display: inline-block;
-  margin-left: 1px;
-  animation: blink 0.8s step-end infinite;
-  color: #6366f1;
+  50%      { opacity: 0.15; }
 }
 
-/* Markdown table styles injected into prose */
-.prose table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 0.75rem 0;
-  font-size: 0.875rem;
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
-.prose thead {
-  background: #1e293b;
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
-.prose th, .prose td {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #334155;
-  text-align: left;
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.97) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
 }
-.prose th {
-  color: #94a3b8;
-  font-weight: 600;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 1; }
 }
-.prose td {
-  color: #cbd5e1;
+
+.animate-fade-up {
+  animation: fade-up 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.prose tr:hover td {
-  background: #1e293b;
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
 }
-.prose strong {
-  color: #e2e8f0;
-  font-weight: 600;
+
+.animate-scale-in {
+  animation: scale-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Staggered entrance for welcome cards */
+.stagger > * {
+  animation: fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger > *:nth-child(2) { animation-delay: 0.10s; }
+.stagger > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger > *:nth-child(4) { animation-delay: 0.20s; }
+.stagger > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger > *:nth-child(6) { animation-delay: 0.30s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Streaming cursor ──────────────────────────────────────── */
+.streaming-cursor > :last-child::after {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  margin-left: 3px;
+  vertical-align: text-bottom;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #34d399, #0d9488);
+  animation: blink 0.9s ease-in-out infinite;
+}
+
+/* ── Markdown prose (assistant messages) ───────────────────── */
+.prose {
+  color: #d4d4d8;
 }
 .prose p {
-  margin: 0.4rem 0;
-  line-height: 1.65;
+  margin: 0.5rem 0;
+  line-height: 1.7;
 }
-.prose ul {
+.prose p:first-child { margin-top: 0; }
+.prose p:last-child  { margin-bottom: 0; }
+
+.prose h1, .prose h2, .prose h3, .prose h4 {
+  color: #fafafa;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 1rem 0 0.4rem;
+}
+.prose h1 { font-size: 1.15rem; }
+.prose h2 { font-size: 1.05rem; }
+.prose h3 { font-size: 0.95rem; }
+
+.prose strong {
+  color: #f4f4f5;
+  font-weight: 600;
+}
+
+.prose a {
+  color: #34d399;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(52, 211, 153, 0.3);
+  transition: border-color 0.15s ease;
+}
+.prose a:hover {
+  border-bottom-color: #34d399;
+}
+
+.prose ul, .prose ol {
   padding-left: 1.25rem;
-  margin: 0.4rem 0;
+  margin: 0.5rem 0;
 }
 .prose li {
-  margin: 0.2rem 0;
+  margin: 0.25rem 0;
+  line-height: 1.65;
 }
+.prose li::marker {
+  color: #10b981;
+}
+
 .prose code {
-  background: #0f172a;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   padding: 0.1rem 0.35rem;
-  border-radius: 4px;
+  border-radius: 5px;
   font-size: 0.85em;
-  color: #a5b4fc;
+  color: #6ee7b7;
+}
+
+.prose blockquote {
+  border-left: 3px solid #10b981;
+  margin: 0.6rem 0;
+  padding: 0.1rem 0 0.1rem 0.9rem;
+  color: #a1a1aa;
+}
+
+.prose hr {
+  border: none;
+  border-top: 1px solid #27272a;
+  margin: 1rem 0;
+}
+
+/* ── Markdown tables ───────────────────────────────────────── */
+.prose table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 0.85rem 0;
+  font-size: 0.85rem;
+  border: 1px solid #27272a;
+  border-radius: 10px;
+  overflow: hidden;
+  display: block;
+  overflow-x: auto;
+}
+.prose thead {
+  background: #18181b;
+}
+.prose th, .prose td {
+  padding: 0.6rem 0.9rem;
+  text-align: left;
+  border-bottom: 1px solid #27272a;
+  vertical-align: top;
+}
+.prose th {
+  white-space: nowrap;
+}
+.prose th {
+  color: #71717a;
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.prose td {
+  color: #d4d4d8;
+}
+.prose tbody tr:last-child td {
+  border-bottom: none;
+}
+.prose tbody tr {
+  transition: background-color 0.15s ease;
+}
+.prose tbody tr:hover {
+  background: rgba(255, 255, 255, 0.025);
 }

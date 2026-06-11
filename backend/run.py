@@ -35,12 +35,17 @@ def main() -> None:
     )
     server = uvicorn.Server(config)
 
-    if sys.platform == "win32":
-        # ProactorEventLoop supports subprocess_exec — required by Playwright
-        with asyncio.Runner(loop_factory=asyncio.ProactorEventLoop) as runner:
-            runner.run(server.serve())
-    else:
-        asyncio.run(server.serve())
+    try:
+        if sys.platform == "win32":
+            # ProactorEventLoop supports subprocess_exec — required by Playwright
+            with asyncio.Runner(loop_factory=asyncio.ProactorEventLoop) as runner:
+                runner.run(server.serve())
+        else:
+            asyncio.run(server.serve())
+    except KeyboardInterrupt:
+        # asyncio.Runner re-raises KeyboardInterrupt after cancelling the task;
+        # uvicorn has already shut down gracefully by this point.
+        print("Server stopped.")
 
 
 if __name__ == "__main__":

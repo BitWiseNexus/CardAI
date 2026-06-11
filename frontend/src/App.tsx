@@ -6,10 +6,20 @@ import { ChatInput } from './components/ChatInput'
 const SESSION_ID = `session-${Math.random().toString(36).slice(2, 10)}`
 
 const REGIONS: { value: Region; label: string }[] = [
-  { value: 'US', label: '🇺🇸 US' },
-  { value: 'IN', label: '🇮🇳 India' },
-  { value: 'BOTH', label: '🌐 Both' },
+  { value: 'US', label: 'US' },
+  { value: 'IN', label: 'India' },
+  { value: 'BOTH', label: 'Global' },
 ]
+
+function LogoMark({ className = 'w-9 h-9' }: { className?: string }) {
+  return (
+    <div className={`${className} rounded-xl bg-linear-to-br from-emerald-400 via-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-950/60 ring-1 ring-white/10`}>
+      <svg viewBox="0 0 24 24" className="w-[55%] h-[55%] fill-white">
+        <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h2v2H6zm0 4h8v2H6zm10 0h2v2h-2zm-6-4h8v2h-8z"/>
+      </svg>
+    </div>
+  )
+}
 
 export default function App() {
   const [region, setRegion] = useState<Region>('US')
@@ -23,34 +33,37 @@ export default function App() {
   }, [messages])
 
   return (
-    <div className="flex flex-col h-screen bg-slate-950 text-slate-100">
+    <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100 relative overflow-hidden">
+
+      {/* Ambient top glow */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[350px] rounded-full opacity-20"
+        style={{ background: 'radial-gradient(ellipse at center, rgba(16,185,129,0.5), transparent 65%)' }}
+      />
 
       {/* ── Header ── */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-slate-800 flex-shrink-0">
+      <header className="relative z-10 flex items-center justify-between px-5 sm:px-8 py-3.5 border-b border-white/5 bg-zinc-950/70 backdrop-blur-xl shrink-0">
         <div className="flex items-center gap-3">
-          {/* Logo mark */}
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-900/40">
-            <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white">
-              <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h2v2H6zm0 4h8v2H6zm10 0h2v2h-2zm-6-4h8v2h-8z"/>
-            </svg>
-          </div>
+          <LogoMark />
           <div>
-            <h1 className="text-base font-semibold text-white leading-none">CardAI</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Credit Card Advisor</p>
+            <h1 className="text-[15px] font-semibold tracking-tight text-white leading-none">CardAI</h1>
+            <p className="text-[11px] text-zinc-500 mt-1 leading-none">Credit Card Intelligence</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Region selector */}
-          <div className="flex rounded-lg border border-slate-700 overflow-hidden">
+        <div className="flex items-center gap-3">
+          {/* Region selector — segmented control */}
+          <div className="flex items-center gap-0.5 rounded-full bg-zinc-900 border border-white/5 p-0.5 shadow-inner shadow-black/40">
             {REGIONS.map(r => (
               <button
                 key={r.value}
                 onClick={() => setRegion(r.value)}
-                className={`text-xs px-3 py-1.5 transition-colors ${
+                aria-pressed={region === r.value}
+                className={`text-xs font-medium px-3.5 py-1.5 rounded-full transition-all duration-200 ${
                   region === r.value
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    ? 'bg-zinc-800 text-emerald-300 shadow-sm ring-1 ring-white/10'
+                    : 'text-zinc-500 hover:text-zinc-300'
                 }`}
               >
                 {r.label}
@@ -58,16 +71,19 @@ export default function App() {
             ))}
           </div>
 
-          {/* Status dot */}
-          <span className="flex items-center gap-1.5 text-xs text-slate-500 ml-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Live
+          {/* Status */}
+          <span className="hidden md:flex items-center gap-1.5 text-[11px] font-medium text-zinc-500 border border-white/5 bg-zinc-900/60 px-2.5 py-1.5 rounded-full">
+            <span className="relative flex w-1.5 h-1.5">
+              <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-500 opacity-60 animate-ping" />
+              <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            </span>
+            Live data
           </span>
 
           {messages.length > 0 && (
             <button
               onClick={clearChat}
-              className="ml-2 text-xs text-slate-500 hover:text-slate-300 border border-slate-700 hover:border-slate-500 px-3 py-1.5 rounded-lg transition-colors"
+              className="text-xs font-medium text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-white/5 px-3.5 py-1.5 rounded-full transition-all duration-200"
             >
               New chat
             </button>
@@ -76,22 +92,28 @@ export default function App() {
       </header>
 
       {/* ── Chat area ── */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="relative z-10 flex-1 overflow-y-auto">
         {isEmpty ? (
           <WelcomeScreen onSend={sendMessage} region={region} />
         ) : (
-          <div className="max-w-3xl mx-auto py-6">
+          <div className="max-w-3xl mx-auto py-8 px-1">
             {messages.map(msg => (
               <ChatMessage key={msg.id} message={msg} />
             ))}
-            <div ref={bottomRef} />
+            <div ref={bottomRef} className="h-2" />
           </div>
         )}
       </main>
 
       {/* ── Input ── */}
-      <div className="flex-shrink-0 max-w-3xl w-full mx-auto">
-        <ChatInput onSend={sendMessage} onStop={stopStreaming} isLoading={isLoading} region={region} />
+      <div className="relative z-10 shrink-0 max-w-3xl w-full mx-auto">
+        <ChatInput
+          onSend={sendMessage}
+          onStop={stopStreaming}
+          isLoading={isLoading}
+          region={region}
+          showSuggestions={isEmpty}
+        />
       </div>
     </div>
   )
@@ -128,32 +150,40 @@ const EXAMPLES: Record<Region, { label: string; query: string; icon: string }[]>
 
 function WelcomeScreen({ onSend, region }: { onSend: (t: string) => void; region: Region }) {
   const examples = EXAMPLES[region]
+  const regionLabel = region === 'US' ? 'US' : region === 'IN' ? 'Indian' : 'US & Indian'
 
   return (
-    <div className="flex flex-col items-center justify-center h-full px-4 py-12">
+    <div className="flex flex-col items-center justify-center min-h-full px-4 py-12 animate-fade-in">
       {/* Hero */}
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-2xl shadow-indigo-900/50 mb-6">
-        <svg viewBox="0 0 24 24" className="w-8 h-8 fill-white">
-          <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h2v2H6zm0 4h8v2H6zm10 0h2v2h-2zm-6-4h8v2h-8z"/>
-        </svg>
+      <div className="animate-scale-in">
+        <LogoMark className="w-14 h-14 mx-auto mb-7" />
       </div>
-      <h2 className="text-2xl font-bold text-white mb-2">What card fits your life?</h2>
-      <p className="text-slate-400 text-sm mb-10 text-center max-w-sm">
-        Ask about fees, rewards, APRs, lounge access, or signup bonuses — I'll search live data
-        for {region === 'US' ? 'US' : region === 'IN' ? 'Indian' : 'US and Indian'} cards.
+
+      <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-400/90 mb-3 animate-fade-up" style={{ animationDelay: '0.05s' }}>
+        Live {regionLabel} card data
+      </span>
+
+      <h2 className="text-[28px] sm:text-[32px] font-bold tracking-tight text-white mb-3 text-center animate-fade-up" style={{ animationDelay: '0.1s' }}>
+        What card fits your life?
+      </h2>
+      <p className="text-zinc-400 text-sm leading-relaxed mb-10 text-center max-w-md animate-fade-up" style={{ animationDelay: '0.15s' }}>
+        Ask about fees, rewards, APRs, lounge access, or signup bonuses —
+        answers are grounded in live web data, never guesses.
       </p>
 
       {/* Example cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 w-full max-w-2xl">
+      <div className="stagger grid grid-cols-2 md:grid-cols-3 gap-2.5 w-full max-w-2xl">
         {examples.map(ex => (
           <button
             key={ex.label}
             onClick={() => onSend(ex.query)}
-            className="flex flex-col items-start gap-2 bg-slate-900 border border-slate-800 hover:border-indigo-500 hover:bg-slate-800 rounded-xl px-4 py-3 text-left transition-all group"
+            className="group flex flex-col items-start gap-2 bg-zinc-900/60 border border-white/5 hover:border-emerald-500/40 hover:bg-zinc-900 rounded-2xl px-4 py-3.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-950/30"
           >
-            <span className="text-xl">{ex.icon}</span>
-            <span className="text-xs font-medium text-slate-400 group-hover:text-indigo-400 transition-colors">{ex.label}</span>
-            <span className="text-xs text-slate-600 leading-snug">{ex.query}</span>
+            <span className="text-lg leading-none">{ex.icon}</span>
+            <span className="text-xs font-semibold text-zinc-300 group-hover:text-emerald-300 transition-colors duration-200">
+              {ex.label}
+            </span>
+            <span className="text-[11px] text-zinc-500 leading-snug line-clamp-2">{ex.query}</span>
           </button>
         ))}
       </div>
