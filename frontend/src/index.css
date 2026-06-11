@@ -29,6 +29,8 @@
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     background-color: #09090b;
     color: #e4e4e7;
+    /* Stop mobile rubber-band scrolling from dragging the whole app shell */
+    overscroll-behavior-y: none;
   }
 
   ::selection {

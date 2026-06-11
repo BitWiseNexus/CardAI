@@ -33,7 +33,7 @@ export default function App() {
   }, [messages])
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100 relative overflow-hidden">
+    <div className="flex flex-col h-dvh bg-zinc-950 text-zinc-100 relative overflow-hidden">
 
       {/* Ambient top glow */}
       <div
@@ -43,16 +43,16 @@ export default function App() {
       />
 
       {/* ── Header ── */}
-      <header className="relative z-10 flex items-center justify-between px-5 sm:px-8 py-3.5 border-b border-white/5 bg-zinc-950/70 backdrop-blur-xl shrink-0">
-        <div className="flex items-center gap-3">
-          <LogoMark />
-          <div>
+      <header className="relative z-10 flex items-center justify-between gap-2 px-3 sm:px-8 py-3.5 border-b border-white/5 bg-zinc-950/70 backdrop-blur-xl shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <LogoMark className="w-9 h-9 shrink-0" />
+          <div className="min-w-0">
             <h1 className="text-[15px] font-semibold tracking-tight text-white leading-none">CardAI</h1>
-            <p className="text-[11px] text-zinc-500 mt-1 leading-none">Credit Card Intelligence</p>
+            <p className="hidden sm:block text-[11px] text-zinc-500 mt-1 leading-none">Credit Card Intelligence</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {/* Region selector — segmented control */}
           <div className="flex items-center gap-0.5 rounded-full bg-zinc-900 border border-white/5 p-0.5 shadow-inner shadow-black/40">
             {REGIONS.map(r => (
@@ -60,7 +60,7 @@ export default function App() {
                 key={r.value}
                 onClick={() => setRegion(r.value)}
                 aria-pressed={region === r.value}
-                className={`text-xs font-medium px-3.5 py-1.5 rounded-full transition-all duration-200 ${
+                className={`text-xs font-medium px-2.5 sm:px-3.5 py-1.5 rounded-full transition-all duration-200 ${
                   region === r.value
                     ? 'bg-zinc-800 text-emerald-300 shadow-sm ring-1 ring-white/10'
                     : 'text-zinc-500 hover:text-zinc-300'
@@ -83,16 +83,22 @@ export default function App() {
           {messages.length > 0 && (
             <button
               onClick={clearChat}
-              className="text-xs font-medium text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-white/5 px-3.5 py-1.5 rounded-full transition-all duration-200"
+              title="New chat"
+              className="flex items-center justify-center text-xs font-medium text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-white/5 w-8 h-8 sm:w-auto sm:h-auto sm:px-3.5 sm:py-1.5 rounded-full transition-all duration-200"
             >
-              New chat
+              {/* Icon on phones, label on larger screens */}
+              <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current sm:hidden">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+              </svg>
+              <span className="hidden sm:inline">New chat</span>
             </button>
           )}
         </div>
       </header>
 
       {/* ── Chat area ── */}
-      <main className="relative z-10 flex-1 overflow-y-auto">
+      {/* overscroll-contain keeps message scrolling from chaining to the page on touch devices */}
+      <main className="relative z-10 flex-1 overflow-y-auto overscroll-contain">
         {isEmpty ? (
           <WelcomeScreen onSend={sendMessage} region={region} />
         ) : (

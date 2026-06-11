@@ -59,7 +59,8 @@ export function ChatInput({ onSend, onStop, isLoading, region = 'US', showSugges
   const suggestions = SUGGESTIONS[region]
 
   return (
-    <div className="px-4 pt-2 pb-4">
+    /* pb respects the iPhone home-indicator inset (env safe-area) */
+    <div className="px-3 sm:px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-4">
       {/* Quick suggestion chips — only while the chat is empty */}
       {showSuggestions && (
         <div className="flex gap-2 mb-3 flex-wrap justify-center animate-fade-in">
@@ -87,7 +88,7 @@ export function ChatInput({ onSend, onStop, isLoading, region = 'US', showSugges
           placeholder="Ask about credit cards — fees, rewards, travel perks…"
           rows={1}
           disabled={isLoading}
-          className="flex-1 bg-transparent text-zinc-200 text-sm placeholder-zinc-500 resize-none outline-none leading-relaxed py-1 disabled:opacity-60"
+          className="flex-1 bg-transparent text-zinc-200 text-base sm:text-sm placeholder-zinc-500 resize-none outline-none leading-relaxed py-1 disabled:opacity-60"
         />
 
         {isLoading ? (
@@ -114,7 +115,8 @@ export function ChatInput({ onSend, onStop, isLoading, region = 'US', showSugges
         )}
       </div>
 
-      <p className="text-center text-[11px] text-zinc-600 mt-2.5">
+      {/* Keyboard hints only make sense with a physical keyboard */}
+      <p className="hidden sm:block text-center text-[11px] text-zinc-600 mt-2.5">
         Shift+Enter for new line · Enter to send · Answers grounded in live card data
       </p>
     </div>
