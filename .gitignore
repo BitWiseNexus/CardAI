@@ -18,9 +18,7 @@ build/
 backend/data/
 
 # Scraped output files
-*.json
-!package.json
-!package-lock.json
+scraped_cards.json
 
 # Node
 frontend/node_modules/

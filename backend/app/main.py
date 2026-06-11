@@ -83,8 +83,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Comma-separated list of allowed browser origins, e.g.
-# ALLOWED_ORIGINS=https://cardai.vercel.app,http://localhost:5173
 ALLOWED_ORIGINS = [
     o.strip()
     for o in os.environ.get(
