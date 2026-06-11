@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: cardai-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CEREBRAS_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: ADMIN_API_KEY
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        value: http://localhost:5173   # append your frontend URL after deploying it
+      - key: CARD_CACHE_TTL_HOURS
+        value: "24"

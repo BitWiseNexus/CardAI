@@ -13,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import argparse
 
@@ -23,7 +24,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--reload", action="store_true", default=False)
     parser.add_argument("--host", default="0.0.0.0")
-    parser.add_argument("--port", type=int, default=8000)
+    # Hosting platforms (Render/Railway) inject PORT; CLI flag still wins
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
     args = parser.parse_args()
 
     config = uvicorn.Config(

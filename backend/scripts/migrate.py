@@ -1,11 +1,11 @@
 """
-Phase 3 migration runner — adds multi-region columns to credit_cards.
+migration runner — adds multi-region columns to credit_cards.
 
 Connects directly to the Supabase Postgres instance (PostgREST cannot run DDL).
 Requires SUPABASE_DB_PASSWORD in .env (Supabase Dashboard → Settings → Database).
 
 Usage:
-    python -m scripts.migrate_phase3
+    python -m scripts.migrate
 
 If the direct connection fails (some Supabase projects are IPv6-only),
 copy the SQL printed below into the Supabase SQL Editor instead.
@@ -77,7 +77,7 @@ def main() -> None:
             with conn.cursor() as cur:
                 cur.execute(MIGRATION_SQL)
             conn.close()
-            print("[OK] Phase 3 migration applied successfully.")
+            print("[OK] migration applied successfully.")
             return
         except Exception as exc:  # noqa: BLE001
             last_error = exc

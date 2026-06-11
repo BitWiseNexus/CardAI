@@ -10,7 +10,8 @@ export interface Message {
 
 export type Region = 'US' | 'IN' | 'BOTH'
 
-const API_URL = 'http://localhost:8000/api/chat'
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const API_URL = `${API_BASE}/api/chat`
 
 function uid() {
   return Math.random().toString(36).slice(2, 10)

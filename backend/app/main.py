@@ -34,8 +34,10 @@ import time
 from collections import defaultdict
 from typing import AsyncGenerator
 
+from contextlib import asynccontextmanager
+
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -56,26 +58,74 @@ logging.basicConfig(
 # App
 # ---------------------------------------------------------------------------
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Fresh deploys have no FAISS index on disk (it's gitignored). If the DB
+    # already holds cards, rebuild it once at boot so vector search works
+    # immediately. Non-fatal: the agent also rebuilds after each ingest.
+    try:
+        vector_store.load_index()
+    except Exception:  # noqa: BLE001 — missing/corrupt index, rebuild from DB
+        try:
+            cards = await asyncio.to_thread(db.get_all_cards)
+            if cards:
+                log.info("No FAISS index on disk — rebuilding from %d DB card(s)", len(cards))
+                await asyncio.to_thread(vector_store.build_index, cards)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Startup index rebuild skipped: %s", exc)
+    yield
+
+
 app = FastAPI(
     title="CardAI",
     description="Real-Time Multi-Region Credit Card Search Agent & Hybrid RAG Chatbot",
-    version="0.3.0",
+    version="1.0.0",
+    lifespan=lifespan,
 )
+
+# Comma-separated list of allowed browser origins, e.g.
+# ALLOWED_ORIGINS=https://cardai.vercel.app,http://localhost:5173
+ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.environ.get(
+        "ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000"
+    ).split(",")
+    if o.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _require_admin(x_admin_key: str | None) -> None:
+    """
+    Admin endpoints are open in dev (no ADMIN_API_KEY set) and locked in
+    production: set ADMIN_API_KEY and send it as the X-Admin-Key header.
+    """
+    expected = os.environ.get("ADMIN_API_KEY")
+    if expected and x_admin_key != expected:
+        raise HTTPException(status_code=401, detail="Invalid or missing X-Admin-Key header")
 
 # In-memory session store
 _sessions: dict[str, list[dict]] = defaultdict(list)
 
 # Response cache: {cache_key: full_response_text}
 # Keyed by hash(region + normalized_query).  Cleared by POST /api/cache/clear.
+# FIFO-capped so arbitrary user queries can't grow memory unbounded.
 _response_cache: dict[str, str] = {}
+RESPONSE_CACHE_MAX = int(os.environ.get("RESPONSE_CACHE_MAX", "500"))
+
+
+def _cache_store(key: str, value: str) -> None:
+    if len(_response_cache) >= RESPONSE_CACHE_MAX:
+        # dicts preserve insertion order — drop the oldest entry
+        _response_cache.pop(next(iter(_response_cache)))
+    _response_cache[key] = value
 
 
 def _cache_key(user_message: str, region: str | None = None) -> str:
@@ -160,7 +210,7 @@ async def stream_generation(
             yield f"data: {json.dumps({'token': token})}\n\n"
             await asyncio.sleep(0)
 
-        _response_cache[cache_k] = "".join(accumulated)
+        _cache_store(cache_k, "".join(accumulated))
         log.info("Cache STORE for query: %s", user_message[:60])
         yield "data: [DONE]\n\n"
     except Exception as exc:  # noqa: BLE001
@@ -193,12 +243,13 @@ async def health() -> dict:
 async def cache_stats() -> dict:
     return {
         "cached_entries": len(_response_cache),
-        "keys": list(_response_cache.keys()),
+        "max_entries": RESPONSE_CACHE_MAX,
     }
 
 
 @app.post("/api/cache/clear")
-async def cache_clear() -> dict:
+async def cache_clear(x_admin_key: str | None = Header(default=None)) -> dict:
+    _require_admin(x_admin_key)
     _response_cache.clear()
     return {"cleared": True}
 
@@ -277,8 +328,17 @@ class IngestRequest(BaseModel):
 
 
 @app.post("/api/ingest")
-async def ingest(req: IngestRequest) -> dict:
-    from scripts.scraper import scrape  # deferred to avoid circular import
+async def ingest(req: IngestRequest, x_admin_key: str | None = Header(default=None)) -> dict:
+    _require_admin(x_admin_key)
+    try:
+        from scripts.scraper import scrape  # deferred to avoid circular import
+    except ImportError as exc:
+        # Playwright is a dev-only dependency; production uses the search agent
+        raise HTTPException(
+            status_code=501,
+            detail="Static scraper unavailable (playwright not installed). "
+                   "Card data is ingested automatically by the web search agent.",
+        ) from exc
 
     start  = time.perf_counter()
     result = await scrape(req.url)

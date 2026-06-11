@@ -1,0 +1,12 @@
+# CardAI — development-only dependencies
+-r requirements.txt
+
+# Tests
+pytest>=8.3.0
+pytest-asyncio>=0.24.0
+
+# Legacy static scraper (POST /api/ingest); not needed in production
+playwright>=1.49.0
+
+# Direct Postgres access for scripts/migrate_phase3.py
+psycopg2-binary>=2.9.0
